@@ -1,0 +1,28 @@
+🚀 Server running at http://0.0.0.0:3000/
+
+📚 API文档:
+
+【用户认证】
+  POST /api/auth/register       - 用户注册
+  POST /api/auth/login          - 用户登录
+  POST /api/auth/logout         - 用户登出
+  GET  /api/auth/me             - 获取当前用户
+  PUT  /api/users/profile       - 更新用户信息
+  PUT  /api/auth/password       - 修改密码
+  POST /api/users/verification  - 申请主播认证
+
+【直播】
+  GET  /api/health              - 健康检查
+  GET  /api/streams             - 直播列表
+  GET  /api/streams/:id         - 直播间详情
+  GET  /api/streams/:id/comments - 获取评论
+  POST /api/streams/:id/comments - 发送评论
+  GET  /api/gifts/list          - 礼物列表
+  POST /api/gifts/send          - 送礼物
+  POST /api/follow/:userId      - 关注/取关
+  GET  /api/wallet/balance      - 查询余额
+
+💰 默认钱包余额: $888.88
+Connected to SQLite database.
+2026-03-08T07:50:04.301Z - GET /api/health
+2026-03-08T07:50:08.624Z - POST /api/streams/create
