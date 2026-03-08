@@ -18,7 +18,7 @@
   "dependencies": {
     "dotenv": "^17.3.1",
     "jsonwebtoken": "^9.0.2",
-    "sqlite3": "^5.1.6",
+    "better-sqlite3": "^9.4.3",
     "tencentcloud-sdk-nodejs": "^4.0.0"
   }
 }

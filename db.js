@@ -1,22 +1,23 @@
-const sqlite3 = require('sqlite3').verbose();
+const Database = require('better-sqlite3');
 const path = require('path');
 
 // 数据库文件路径
 const DB_PATH = path.join(__dirname, 'travel.db');
 
 // 创建数据库连接
-const db = new sqlite3.Database(DB_PATH, (err) => {
-  if (err) {
-    console.error('Error opening database:', err.message);
-  } else {
-    console.log('Connected to SQLite database.');
-  }
-});
+let db;
+try {
+  db = new Database(DB_PATH);
+  console.log('Connected to SQLite database.');
+} catch (err) {
+  console.error('Error opening database:', err.message);
+  process.exit(1);
+}
 
 // 初始化数据库表
-db.serialize(() => {
+try {
   // 用户表
-  db.run(`CREATE TABLE IF NOT EXISTS users (
+  db.exec(`CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY,
     email TEXT UNIQUE NOT NULL,
     password_hash TEXT NOT NULL,
@@ -48,7 +49,7 @@ db.serialize(() => {
   )`);
 
   // 会话表
-  db.run(`CREATE TABLE IF NOT EXISTS user_sessions (
+  db.exec(`CREATE TABLE IF NOT EXISTS user_sessions (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL,
     token_hash TEXT NOT NULL,
@@ -59,98 +60,71 @@ db.serialize(() => {
   )`);
 
   // 创建索引
-  db.run(`CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)`);
-  db.run(`CREATE INDEX IF NOT EXISTS idx_users_role ON users(role)`);
-  db.run(`CREATE INDEX IF NOT EXISTS idx_users_status ON users(status)`);
-  db.run(`CREATE INDEX IF NOT EXISTS idx_sessions_user ON user_sessions(user_id)`);
-  db.run(`CREATE INDEX IF NOT EXISTS idx_sessions_token ON user_sessions(token_hash)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_users_role ON users(role)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_users_status ON users(status)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_sessions_user ON user_sessions(user_id)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_sessions_token ON user_sessions(token_hash)`);
 
   // 检查是否有测试数据
-  db.get('SELECT COUNT(*) as count FROM users', (err, row) => {
-    if (err) {
-      console.error('Error checking users:', err);
-      return;
-    }
-    if (row.count === 0) {
-      // 插入测试数据
-      const stmt = db.prepare(`INSERT INTO users 
-        (id, email, password_hash, username, avatar, role, is_verified, followers_count, following_count, total_lives, total_earnings) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
-      
-      stmt.run('u1', 'alex@example.com', '5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8', 
-        'Alex', 'https://api.dicebear.com/7.x/avataaars/svg?seed=Alex', 'streamer', 1, 1200, 45, 15, 1250.50);
-      stmt.run('u2', 'maria@example.com', '5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8', 
-        'Maria', 'https://api.dicebear.com/7.x/avataaars/svg?seed=Maria', 'streamer', 1, 890, 32, 8, 890.00);
-      
-      stmt.finalize();
-      console.log('Inserted test users.');
-    }
-  });
-});
+  const row = db.prepare('SELECT COUNT(*) as count FROM users').get();
+  if (row.count === 0) {
+    // 插入测试数据
+    const stmt = db.prepare(`INSERT INTO users 
+      (id, email, password_hash, username, avatar, role, is_verified, followers_count, following_count, total_lives, total_earnings) 
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+    
+    stmt.run('u1', 'alex@example.com', '5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8', 
+      'Alex', 'https://api.dicebear.com/7.x/avataaars/svg?seed=Alex', 'streamer', 1, 1200, 45, 15, 1250.50);
+    stmt.run('u2', 'maria@example.com', '5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8', 
+      'Maria', 'https://api.dicebear.com/7.x/avataaars/svg?seed=Maria', 'streamer', 1, 890, 32, 8, 890.00);
+    
+    console.log('Inserted test users.');
+  }
+} catch (err) {
+  console.error('Error initializing database:', err);
+}
 
 // 数据库操作方法
 const dbUtils = {
   // 获取用户通过邮箱
   getUserByEmail(email) {
-    return new Promise((resolve, reject) => {
-      db.get('SELECT * FROM users WHERE email = ?', [email.toLowerCase()], (err, row) => {
-        if (err) reject(err);
-        else resolve(row);
-      });
-    });
+    return db.prepare('SELECT * FROM users WHERE email = ?').get(email.toLowerCase());
   },
 
   // 获取用户通过ID
   getUserById(id) {
-    return new Promise((resolve, reject) => {
-      db.get('SELECT * FROM users WHERE id = ?', [id], (err, row) => {
-        if (err) reject(err);
-        else resolve(row);
-      });
-    });
+    return db.prepare('SELECT * FROM users WHERE id = ?').get(id);
   },
 
   // 创建用户
   createUser(user) {
-    return new Promise((resolve, reject) => {
-      const fields = Object.keys(user).join(', ');
-      const placeholders = Object.keys(user).map(() => '?').join(', ');
-      const values = Object.values(user);
-      
-      db.run(`INSERT INTO users (${fields}) VALUES (${placeholders})`, values, function(err) {
-        if (err) reject(err);
-        else resolve({ id: this.lastID });
-      });
-    });
+    const fields = Object.keys(user).join(', ');
+    const placeholders = Object.keys(user).map(() => '?').join(', ');
+    const values = Object.values(user);
+    
+    const result = db.prepare(`INSERT INTO users (${fields}) VALUES (${placeholders})`).run(...values);
+    return { id: result.lastInsertRowid };
   },
 
   // 更新用户
   updateUser(id, updates) {
-    return new Promise((resolve, reject) => {
-      const fields = Object.keys(updates).map(key => `${key} = ?`).join(', ');
-      const values = [...Object.values(updates), id];
-      
-      db.run(`UPDATE users SET ${fields}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, values, function(err) {
-        if (err) reject(err);
-        else resolve({ changes: this.changes });
-      });
-    });
+    const fields = Object.keys(updates).map(key => `${key} = ?`).join(', ');
+    const values = [...Object.values(updates), id];
+    
+    const result = db.prepare(`UPDATE users SET ${fields}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(...values);
+    return { changes: result.changes };
   },
 
   // 检查邮箱是否存在
-  async emailExists(email) {
-    const user = await this.getUserByEmail(email);
+  emailExists(email) {
+    const user = this.getUserByEmail(email);
     return !!user;
   },
 
   // 关闭数据库连接
   close() {
-    return new Promise((resolve, reject) => {
-      db.close((err) => {
-        if (err) reject(err);
-        else resolve();
-      });
-    });
+    db.close();
   }
 };
 
