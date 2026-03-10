@@ -428,6 +428,148 @@ const routes = {
   'GET /api/streams/live': async (req, res) => {
     handleGetLiveStreams(req, res);
   },
+  
+  // ========== 首页模块 ==========
+  
+  // 获取Banner列表
+  'GET /api/banners': async (req, res) => {
+    const banners = [
+      {
+        id: '1',
+        imageUrl: 'https://images.unsplash.com/photo-1508804185872-d7badad00f7d?w=800',
+        title: '🎉 新人开播奖励翻倍！',
+        actionType: 'task',
+        actionUrl: '/tasks',
+      },
+      {
+        id: '2',
+        imageUrl: 'https://images.unsplash.com/photo-1548013146-72479768bada?w=800',
+        title: '📍 探索北京胡同文化',
+        actionType: 'live',
+        actionUrl: '/live/beijing',
+      },
+      {
+        id: '3',
+        imageUrl: 'https://images.unsplash.com/photo-1537531383496-f4749b8032cf?w=800',
+        title: '💰 今日最高收益 $1,234',
+        actionType: 'web',
+        actionUrl: '/ranking',
+      },
+    ];
+    jsonRes(res, { code: 0, data: banners });
+  },
+  
+  // 获取关注的主播列表
+  'GET /api/followed-streamers': async (req, res) => {
+    const currentUser = 'current_user';
+    const followedIds = db.follows[currentUser] || [];
+    
+    const streamers = followedIds.map(userId => {
+      const user = db.users.find(u => u.id === userId);
+      if (!user) return null;
+      
+      // 检查是否正在直播
+      const liveStream = db.streams.find(s => s.streamerId === userId && s.isLive);
+      
+      return {
+        id: userId,
+        username: user.name,
+        avatar: user.avatar,
+        isLive: !!liveStream,
+        title: liveStream?.title || '',
+        viewers: liveStream?.viewers?.toString() || '0',
+        streamId: liveStream?.id || '',
+      };
+    }).filter(Boolean);
+    
+    jsonRes(res, { code: 0, data: streamers });
+  },
+  
+  // 获取混合内容流（直播+回放+视频）
+  'GET /api/mixed-content': async (req, res) => {
+    const parsedUrl = url.parse(req.url, true);
+    const filter = parsedUrl.query.filter || 'recommend';
+    const limit = parseInt(parsedUrl.query.limit) || 20;
+    
+    // 构建混合内容
+    const mixedContent = [];
+    
+    // 1. 添加正在直播的内容
+    const liveStreams = db.streams
+      .filter(s => s.isLive)
+      .map(s => ({
+        id: s.id,
+        type: 'live',
+        title: s.title,
+        author: s.streamerName,
+        thumbnailUrl: s.thumbnail,
+        viewers: s.viewers.toString(),
+        isLive: true,
+        location: s.location,
+      }));
+    
+    // 2. 添加模拟的回放/视频内容
+    const videoContent = [
+      {
+        id: 'v1',
+        type: 'video',
+        title: '成都街头小吃攻略，人均20吃到撑',
+        author: '@成都吃货王',
+        thumbnailUrl: 'https://images.unsplash.com/photo-1563245372-f21724e3856d?w=400',
+        likes: '2.3k',
+        duration: '03:45',
+      },
+      {
+        id: 'v2',
+        type: 'replay',
+        title: '西安城墙骑行全记录',
+        author: '@西安美食家',
+        thumbnailUrl: 'https://images.unsplash.com/photo-1599571234909-29ed5d1321d6?w=400',
+        viewers: '5.6k',
+        duration: '45:20',
+      },
+      {
+        id: 'v3',
+        type: 'video',
+        title: '西湖十景最佳拍摄点',
+        author: '@杭州西湖妹',
+        thumbnailUrl: 'https://images.unsplash.com/photo-1598887142487-3c854d51eabb?w=400',
+        likes: '1.8k',
+        duration: '02:30',
+      },
+    ];
+    
+    // 根据筛选条件调整内容
+    if (filter === 'live') {
+      mixedContent.push(...liveStreams);
+    } else if (filter === 'video') {
+      mixedContent.push(...videoContent);
+    } else {
+      // 推荐模式：混合排列
+      const maxItems = Math.max(liveStreams.length, videoContent.length);
+      for (let i = 0; i < maxItems; i++) {
+        if (liveStreams[i]) mixedContent.push(liveStreams[i]);
+        if (videoContent[i]) mixedContent.push(videoContent[i]);
+      }
+    }
+    
+    // 限制数量
+    const result = mixedContent.slice(0, limit);
+    
+    jsonRes(res, { code: 0, data: result, total: result.length });
+  },
+  
+  // 获取快捷入口配置
+  'GET /api/quick-entries': async (req, res) => {
+    const entries = [
+      { id: '1', icon: '📍', label: '附近', filter: 'nearby' },
+      { id: '2', icon: '🔥', label: '热门', filter: 'hot' },
+      { id: '3', icon: '⭐', label: '新人', filter: 'new' },
+      { id: '4', icon: '🎯', label: '推荐', filter: 'recommend' },
+      { id: '5', icon: '🎁', label: '活动', filter: 'activity' },
+    ];
+    jsonRes(res, { code: 0, data: entries });
+  },
 };
 
 // ==================== HTTP服务器 ====================
@@ -517,7 +659,7 @@ const server = http.createServer(async (req, res) => {
 
 const PORT = 3000;
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Server running at http://0.0.0.0:${PORT}/`);
+  console.log(`🚀 Server running at http://192.168.124.11:${PORT}/`);
   console.log('');
   console.log('📚 API文档:');
   console.log('');

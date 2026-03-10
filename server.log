@@ -24,5 +24,4 @@
 
 💰 默认钱包余额: $888.88
 Connected to SQLite database.
-2026-03-08T07:50:04.301Z - GET /api/health
-2026-03-08T07:50:08.624Z - POST /api/streams/create
+2026-03-08T09:38:55.812Z - GET /api/health
